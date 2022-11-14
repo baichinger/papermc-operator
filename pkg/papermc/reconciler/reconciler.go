@@ -257,6 +257,7 @@ func (r *Reconciler) ReconcileProvisionerForDesiredVersion() Result {
 			Labels:    labelsForPaperInstance(r.paper),
 		},
 		Spec: corev1.PodSpec{
+			AutomountServiceAccountToken: pointer.Bool(false),
 			Containers: []corev1.Container{{
 				Name:       "paper",
 				Image:      r.imageForPaperDownloader(r.paper),
@@ -328,6 +329,7 @@ func (r *Reconciler) ReconcilePaperInstanceForDesiredVersion() Result {
 			Labels:    labelsForPaperInstance(r.paper),
 		},
 		Spec: corev1.PodSpec{
+			AutomountServiceAccountToken: pointer.Bool(false),
 			InitContainers: []corev1.Container{{
 				Name:       "eula",
 				Image:      r.imageForPaperDownloader(r.paper),
