@@ -1,0 +1,12 @@
+apiVersion: papermc.io/v1
+kind: Paper
+metadata:
+  labels:
+    app.kubernetes.io/name: paper
+    app.kubernetes.io/instance: paper-sample
+    app.kubernetes.io/part-of: papermc-operator
+    app.kuberentes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: papermc-operator
+  name: paper-sample
+spec:
+  version: "1.19.2"

@@ -1,0 +1,27 @@
+# permissions for end users to view papers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: paper-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: papermc-operator
+    app.kubernetes.io/part-of: papermc-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: paper-viewer-role
+rules:
+- apiGroups:
+  - papermc.io
+  resources:
+  - papers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - papermc.io
+  resources:
+  - papers/status
+  verbs:
+  - get

@@ -1,0 +1,15 @@
+domain: papermc.io
+layout:
+- go.kubebuilder.io/v3
+projectName: papermc-operator
+repo: github.com/baichinger/papermc-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: papermc.io
+  kind: Paper
+  path: github.com/baichinger/papermc-operator/api/v1
+  version: v1
+version: "3"
