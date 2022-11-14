@@ -32,9 +32,8 @@ import (
 )
 
 var (
-	noRequeue       = ctrl.Result{}
-	shortishRequeue = ctrl.Result{RequeueAfter: 90 * time.Second}
-	longishRequeue  = ctrl.Result{RequeueAfter: 2 * time.Hour}
+	noRequeue = ctrl.Result{}
+	requeue   = ctrl.Result{RequeueAfter: 2 * time.Hour}
 )
 
 // PaperController reconciles a Paper object
@@ -133,5 +132,5 @@ func (c *PaperController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	logger.Info("reconciliation done")
 
-	return longishRequeue, nil
+	return requeue, nil
 }
