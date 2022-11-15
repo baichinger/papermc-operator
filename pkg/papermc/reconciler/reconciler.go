@@ -224,8 +224,12 @@ func (r *Reconciler) ReconcileProvisionerForDesiredVersion() Result {
 	if r.paper.Status.ActualState != nil && r.paper.Status.DesiredState.Version == r.paper.Status.ActualState.Version {
 		// nothing to do, provisioner already did its job, clean up
 		err := r.client.Delete(r.ctx, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: r.paper.Namespace, Name: name}})
-		if err != nil && !(apierrors.IsNotFound(err) || apierrors.IsGone(err)) {
-			return newFailedResult(err)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return newSkippedResult()
+			} else {
+				return newFailedResult(err)
+			}
 		}
 		return newUpdatedResult()
 	}
