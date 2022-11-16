@@ -27,7 +27,7 @@ const (
 
 	runAsUserId = 1000
 
-	desiredVersionUpdateInterval = 1 * time.Hour
+	desiredVersionUpdateInterval = 2 * time.Hour
 )
 
 type Reconciler struct {
@@ -68,7 +68,8 @@ func (r *Reconciler) InitializeConditions() Result {
 }
 
 func (r *Reconciler) ReconcileDesiredVersion() Result {
-	if r.paper.Status.DesiredState != nil && r.paper.Status.DesiredState.UpdatedTimestamp.Add(2*time.Hour).Before(time.Now()) {
+	now := metav1.Now()
+	if r.paper.Status.DesiredState != nil && r.paper.Status.DesiredState.UpdatedTimestamp.Add(desiredVersionUpdateInterval).After(now.Time) {
 		return newSkippedResult()
 	}
 
@@ -82,7 +83,6 @@ func (r *Reconciler) ReconcileDesiredVersion() Result {
 			return newFailedResult(err)
 		}
 
-		now := metav1.Now()
 		r.paper.Status.DesiredState = &papermciov1.DesiredState{
 			Version: papermciov1.Version{
 				Version: r.paper.Spec.Version,
