@@ -33,7 +33,7 @@ import (
 
 var (
 	noRequeue = ctrl.Result{}
-	requeue   = ctrl.Result{RequeueAfter: 2 * time.Hour}
+	requeue   = ctrl.Result{RequeueAfter: 1 * time.Hour}
 )
 
 // PaperController reconciles a Paper object
