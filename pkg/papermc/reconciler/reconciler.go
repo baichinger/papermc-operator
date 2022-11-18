@@ -300,26 +300,20 @@ func (r *Reconciler) ReconcileProvisionerForDesiredVersion() Result {
 }
 
 func (r *Reconciler) ReconcilePaperInstanceForDesiredVersion() Result {
-	// if r.paper.Status.DesiredState != r.paper.Status.ActualState {
-	// 	if err := r.client.Delete(r.ctx, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: r.paper.Name, Namespace: r.paper.Namespace}}); err != nil {
-	// 		if !apierrors.IsNotFound(err) {
-	// 			return newFailedResult(err)
-	// 		}
-	// 	}
-	// }
-
 	// todo: recreate pod if unhealthy
 	existingPod := corev1.Pod{}
 	if err := r.client.Get(r.ctx, types.NamespacedName{Namespace: r.paper.Namespace, Name: r.paper.Name}, &existingPod); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return newFailedResult(err)
 		}
-	} else if existingPod.Status.Phase == corev1.PodFailed || existingPod.Status.Phase == corev1.PodRunning && r.paper.Status.DesiredState.Version != r.paper.Status.ActualState.Version {
-		// failure or upgrade
-		err := r.client.Delete(r.ctx, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: r.paper.Namespace, Name: r.paper.Name}})
-		if err != nil && !(apierrors.IsNotFound(err) || apierrors.IsGone(err)) {
-			return newFailedResult(err)
-		}
+	} else if existingPod.Status.Phase == corev1.PodFailed {
+		// failure
+		return r.deletePaperInstance()
+	} else if existingPod.Status.Phase == corev1.PodRunning && r.paper.Status.ActualState != nil && r.paper.Status.DesiredState.Version != r.paper.Status.ActualState.Version {
+		// upgrade
+		return r.deletePaperInstance()
+	} else if existingPod.Status.Phase != corev1.PodRunning {
+		// give it a moment
 		return newUpdatedResult()
 	} else {
 		// nothing to do, paper instance Pod exists
@@ -409,6 +403,14 @@ func (r *Reconciler) ReconcilePaperInstanceForDesiredVersion() Result {
 		return newFailedResult(err)
 	}
 
+	return newUpdatedResult()
+}
+
+func (r *Reconciler) deletePaperInstance() Result {
+	err := r.client.Delete(r.ctx, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: r.paper.Namespace, Name: r.paper.Name}})
+	if err != nil && !(apierrors.IsNotFound(err) || apierrors.IsGone(err)) {
+		return newFailedResult(err)
+	}
 	return newUpdatedResult()
 }
 
