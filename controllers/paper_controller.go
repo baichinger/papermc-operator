@@ -78,7 +78,7 @@ func (c *PaperController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	if res := r.InitializeConditions(); res.Failed() {
 		return noRequeue, res.GetError()
 	} else if res.Updated() {
-		logger.Info("reconciled initial status")
+		logger.Info("initial status reconciled")
 		return noRequeue, nil
 	}
 
@@ -86,7 +86,7 @@ func (c *PaperController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	if res := r.ReconcileDesiredVersion(); res.Failed() {
 		return noRequeue, res.GetError()
 	} else if res.Updated() {
-		logger.Info("reconciled desired version")
+		logger.Info("desired version reconciled")
 		return noRequeue, nil
 	}
 
@@ -94,7 +94,7 @@ func (c *PaperController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	if res := r.ReconcilePersistentVolumeClaimForDesiredVersion(); res.Failed() {
 		return noRequeue, res.GetError()
 	} else if res.Updated() {
-		logger.Info("reconciled pvc for desired version")
+		logger.Info("pvc for desired version reconciled")
 		return noRequeue, nil
 	}
 
@@ -102,7 +102,7 @@ func (c *PaperController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	if res := r.ReconcileProvisionerForDesiredVersion(); res.Failed() {
 		return noRequeue, res.GetError()
 	} else if res.Updated() {
-		logger.Info("reconciled provisioner for desired version")
+		logger.Info("provisioner for desired version reconciled")
 		return noRequeue, nil
 	}
 
@@ -110,15 +110,15 @@ func (c *PaperController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	if res := r.ReconcilePersistentVolumeClaimForPaperInstance(); res.Failed() {
 		return noRequeue, res.GetError()
 	} else if res.Updated() {
-		logger.Info("reconciled pvc for instance")
+		logger.Info("pvc for instance reconciled")
 		return noRequeue, nil
 	}
 
 	// run instance with desired version
-	if res := r.ReconcilePaperInstanceForDesiredVersion(); res.Failed() {
+	if res := r.ReconcilePaperInstance(); res.Failed() {
 		return noRequeue, res.GetError()
 	} else if res.Updated() {
-		logger.Info("reconciled pod for instance")
+		logger.Info("pod for instance reconciled")
 		return noRequeue, nil
 	}
 
@@ -126,7 +126,17 @@ func (c *PaperController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	if res := r.ReconcileStatus(); res.Failed() {
 		return noRequeue, res.GetError()
 	} else if res.Updated() {
-		logger.Info("reconciled status")
+		logger.Info("status reconciled")
+		return noRequeue, nil
+	}
+
+	// remove orphan objects
+	if res := r.ReconcileOrphanObjects(); res.Failed() {
+		// silent ignore
+		logger.Info("orphan objects reconciliation failed, ignoring")
+		return noRequeue, nil
+	} else if res.Updated() {
+		logger.Info("orphan objects reconciled")
 		return noRequeue, nil
 	}
 

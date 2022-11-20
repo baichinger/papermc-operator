@@ -3,7 +3,6 @@ package reconciler
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -11,11 +10,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	papermciov1 "github.com/baichinger/papermc-operator/api/v1"
 	papermc "github.com/baichinger/papermc-operator/pkg/papermc/client"
@@ -152,7 +153,7 @@ func (r *Reconciler) ReconcilePersistentVolumeClaimForDesiredVersion() Result {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: r.paper.Namespace,
-			Labels:    labelsForPaperInstance(r.paper),
+			Labels:    labelsForDesiredVersion(r.paper),
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
@@ -222,16 +223,8 @@ func (r *Reconciler) ReconcileProvisionerForDesiredVersion() Result {
 	name := buildObjectNameForVersion(r.paper.Name, r.paper.Status.DesiredState.Version)
 
 	if r.paper.Status.ActualState != nil && r.paper.Status.DesiredState.Version == r.paper.Status.ActualState.Version {
-		// nothing to do, provisioner already did its job, clean up
-		err := r.client.Delete(r.ctx, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: r.paper.Namespace, Name: name}})
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				return newSkippedResult()
-			} else {
-				return newFailedResult(err)
-			}
-		}
-		return newUpdatedResult()
+		// nothing to do, provisioner already did its job
+		return newSkippedResult()
 	}
 
 	existingPod := corev1.Pod{}
@@ -258,7 +251,7 @@ func (r *Reconciler) ReconcileProvisionerForDesiredVersion() Result {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: r.paper.Namespace,
-			Labels:    labelsForPaperInstance(r.paper),
+			Labels:    labelsForDesiredVersion(r.paper),
 		},
 		Spec: corev1.PodSpec{
 			AutomountServiceAccountToken: pointer.Bool(false),
@@ -299,7 +292,7 @@ func (r *Reconciler) ReconcileProvisionerForDesiredVersion() Result {
 	return newUpdatedResult()
 }
 
-func (r *Reconciler) ReconcilePaperInstanceForDesiredVersion() Result {
+func (r *Reconciler) ReconcilePaperInstance() Result {
 	// todo: recreate pod if unhealthy
 	existingPod := corev1.Pod{}
 	if err := r.client.Get(r.ctx, types.NamespacedName{Namespace: r.paper.Namespace, Name: r.paper.Name}, &existingPod); err != nil {
@@ -307,10 +300,10 @@ func (r *Reconciler) ReconcilePaperInstanceForDesiredVersion() Result {
 			return newFailedResult(err)
 		}
 	} else if existingPod.Status.Phase == corev1.PodFailed {
-		// failure
+		// failure, recreate paper pod
 		return r.deletePaperInstance()
-	} else if existingPod.Status.Phase == corev1.PodRunning && r.paper.Status.ActualState != nil && r.paper.Status.DesiredState.Version != r.paper.Status.ActualState.Version {
-		// upgrade
+	} else if existingPod.Status.Phase == corev1.PodRunning && !labels.Equals(existingPod.Labels, labelsForDesiredVersion(r.paper)) {
+		// upgrade, replace paper pod
 		return r.deletePaperInstance()
 	} else if existingPod.Status.Phase != corev1.PodRunning {
 		// give it a moment
@@ -324,7 +317,7 @@ func (r *Reconciler) ReconcilePaperInstanceForDesiredVersion() Result {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      r.paper.Name,
 			Namespace: r.paper.Namespace,
-			Labels:    labelsForPaperInstance(r.paper),
+			Labels:    labelsForDesiredVersion(r.paper),
 		},
 		Spec: corev1.PodSpec{
 			AutomountServiceAccountToken: pointer.Bool(false),
@@ -406,6 +399,47 @@ func (r *Reconciler) ReconcilePaperInstanceForDesiredVersion() Result {
 	return newUpdatedResult()
 }
 
+func (r *Reconciler) ReconcileOrphanObjects() Result {
+	logger := log.FromContext(r.ctx)
+
+	selectorString := fmt.Sprintf("app.kubernetes.io/instance=%s,app.kubernetes.io/version,app.kubernetes.io/version!=%s", r.paper.Name, r.paper.Status.DesiredState.Version.String())
+	selector, err := labels.Parse(selectorString)
+	if err != nil {
+		logger.Info("failed to parse selector", "string", selectorString, "err", err)
+		return newSkippedResult()
+	}
+	options := &client.ListOptions{
+		LabelSelector: selector,
+		Namespace:     r.paper.Namespace,
+	}
+
+	podList := &corev1.PodList{}
+	if err := r.client.List(r.ctx, podList, options); err != nil {
+		return newFailedResult(err)
+	}
+
+	pvcList := &corev1.PersistentVolumeClaimList{}
+	if err := r.client.List(r.ctx, pvcList, options); err != nil {
+		return newFailedResult(err)
+	}
+
+	if len(podList.Items) == 0 && len(pvcList.Items) == 0 {
+		return newSkippedResult()
+	}
+
+	for _, pod := range podList.Items {
+		err := r.client.Delete(r.ctx, &pod)
+		logger.Info("orphan object deleted", "pod", pod.Name, "err", err)
+	}
+
+	for _, pvc := range pvcList.Items {
+		err := r.client.Delete(r.ctx, &pvc)
+		logger.Info("orphan object deleted", "pvc", pvc.Name, "err", err)
+	}
+
+	return newUpdatedResult()
+}
+
 func (r *Reconciler) deletePaperInstance() Result {
 	err := r.client.Delete(r.ctx, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: r.paper.Namespace, Name: r.paper.Name}})
 	if err != nil && !(apierrors.IsNotFound(err) || apierrors.IsGone(err)) {
@@ -438,24 +472,6 @@ func securePodSecurityContext() *corev1.PodSecurityContext {
 	}
 }
 
-func (r *Reconciler) serviceAccountForPaper(p *papermciov1.Paper) (*corev1.ServiceAccount, error) {
-	sa := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      p.Name,
-			Namespace: p.Namespace,
-			Labels:    labelsForPaperInstance(p),
-		},
-		AutomountServiceAccountToken: pointer.Bool(false),
-	}
-
-	err := ctrl.SetControllerReference(p, sa, r.scheme)
-	if err != nil {
-		return nil, err
-	}
-
-	return sa, nil
-}
-
 func (r *Reconciler) imageForPaperDownloader(_ *papermciov1.Paper) string {
 	return "docker.io/busybox:latest"
 }
@@ -468,16 +484,15 @@ func buildObjectNameForVersion(name string, version papermciov1.Version) string 
 	return fmt.Sprintf("%s-%s", name, version.String())
 }
 
-func labelsForPaperInstance(p *papermciov1.Paper) map[string]string {
+func labelsForDesiredVersion(p *papermciov1.Paper) map[string]string {
 	return map[string]string{
 		"app.kubernetes.io/name":     "PaperMC",
 		"app.kubernetes.io/instance": p.Name,
-		"app.kubernetes.io/version":  p.Status.DesiredState.Version.Version,
-		"app.kubernetes.io/build":    strconv.Itoa(p.Status.DesiredState.Version.Build),
+		"app.kubernetes.io/version":  p.Status.DesiredState.Version.String(),
 	}
 }
 
-func labelsForPaperInstancePVC(p *papermciov1.Paper) map[string]string {
+func labelsForPaperInstance(p *papermciov1.Paper) map[string]string {
 	return map[string]string{
 		"app.kubernetes.io/name":     "PaperMC",
 		"app.kubernetes.io/instance": p.Name,
