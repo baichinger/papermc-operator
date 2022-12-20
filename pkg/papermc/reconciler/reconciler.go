@@ -23,6 +23,15 @@ import (
 )
 
 const (
+	imageDownloader = "docker.io/busybox:latest"
+	imageServer     = "gcr.io/distroless/java17-debian11:nonroot"
+
+	labelName     = "app.kubernetes.io/name"
+	labelInstance = "app.kubernetes.io/instance"
+	labelVersion  = "app.kubernetes.io/version"
+
+	objectName = "PaperMC"
+
 	conditionTypeAvailable = "Available"
 	conditionTypeDegraded  = "Degraded"
 
@@ -429,12 +438,12 @@ func (r *Reconciler) ReconcileOrphanObjects() Result {
 
 	for _, pod := range podList.Items {
 		err := r.client.Delete(r.ctx, &pod)
-		logger.Info("orphan object deleted", "pod", pod.Name, "err", err)
+		logger.Info("orphan object deleted", "kind", pod.TypeMeta.Kind, "name", pod.Name, "err", err)
 	}
 
 	for _, pvc := range pvcList.Items {
 		err := r.client.Delete(r.ctx, &pvc)
-		logger.Info("orphan object deleted", "pvc", pvc.Name, "err", err)
+		logger.Info("orphan object deleted", "kind", pvc.TypeMeta.Kind, "name", pvc.Name, "err", err)
 	}
 
 	return newUpdatedResult()
@@ -473,11 +482,11 @@ func securePodSecurityContext() *corev1.PodSecurityContext {
 }
 
 func (r *Reconciler) imageForPaperDownloader(_ *papermciov1.Paper) string {
-	return "docker.io/busybox:latest"
+	return imageDownloader
 }
 
 func (r *Reconciler) imageForPaperInstance(_ *papermciov1.Paper) string {
-	return "gcr.io/distroless/java17-debian11:nonroot"
+	return imageServer
 }
 
 func buildObjectNameForVersion(name string, version papermciov1.Version) string {
@@ -486,15 +495,15 @@ func buildObjectNameForVersion(name string, version papermciov1.Version) string 
 
 func labelsForDesiredVersion(p *papermciov1.Paper) map[string]string {
 	return map[string]string{
-		"app.kubernetes.io/name":     "PaperMC",
-		"app.kubernetes.io/instance": p.Name,
-		"app.kubernetes.io/version":  p.Status.DesiredState.Version.String(),
+		labelName:     objectName,
+		labelInstance: p.Name,
+		labelVersion:  p.Status.DesiredState.Version.String(),
 	}
 }
 
 func labelsForPaperInstance(p *papermciov1.Paper) map[string]string {
 	return map[string]string{
-		"app.kubernetes.io/name":     "PaperMC",
-		"app.kubernetes.io/instance": p.Name,
+		labelName:     objectName,
+		labelInstance: p.Name,
 	}
 }
