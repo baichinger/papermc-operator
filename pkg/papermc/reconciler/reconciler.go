@@ -80,7 +80,7 @@ func (r *Reconciler) InitializeConditions() Result {
 
 func (r *Reconciler) ReconcileDesiredVersion() Result {
 	now := metav1.Now()
-	if r.paper.Status.DesiredState != nil && r.paper.Status.DesiredState.UpdatedTimestamp.Add(desiredVersionUpdateInterval).After(now.Time) {
+	if r.paper.Status.DesiredState != nil && r.paper.Status.DesiredState.UpdatedTimestamp.Add(desiredVersionUpdateInterval).Before(now.Time) {
 		return newSkippedResult()
 	}
 
@@ -109,16 +109,15 @@ func (r *Reconciler) ReconcileDesiredVersion() Result {
 			Reason:  "Reconciling",
 			Message: "Version, build, and url available",
 		})
-		r.paper.Status.UpdatedTimestamp = &now
-
-		if err := r.client.Status().Update(r.ctx, r.paper); err != nil {
-			return newFailedResult(err)
-		}
-
-		return newUpdatedResult()
 	}
 
-	return newSkippedResult()
+	r.paper.Status.UpdatedTimestamp = &now
+
+	if err := r.client.Status().Update(r.ctx, r.paper); err != nil {
+		return newFailedResult(err)
+	}
+
+	return newUpdatedResult()
 }
 
 func (r *Reconciler) ReconcileStatus() Result {
