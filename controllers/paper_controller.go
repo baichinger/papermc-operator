@@ -53,8 +53,8 @@ func (c *PaperController) SetupWithManager(mgr ctrl.Manager) error {
 
 // +kubebuilder:rbac:groups=papermc.io,resources=papers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=papermc.io,resources=papers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=,resources=pods,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=v1,resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
