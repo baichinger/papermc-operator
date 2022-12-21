@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -362,10 +363,37 @@ func (r *Reconciler) ReconcilePaperInstance() Result {
 						MountPath: "/tmp",
 					},
 				},
+				StartupProbe: &corev1.Probe{
+					ProbeHandler: corev1.ProbeHandler{
+						TCPSocket: &corev1.TCPSocketAction{
+							Port: intstr.FromInt(25565),
+						},
+					},
+					InitialDelaySeconds: 5,
+					PeriodSeconds:       2,
+					FailureThreshold:    60,
+				},
+				ReadinessProbe: &corev1.Probe{
+					ProbeHandler: corev1.ProbeHandler{
+						TCPSocket: &corev1.TCPSocketAction{
+							Port: intstr.FromInt(25565),
+						},
+					},
+					PeriodSeconds:    3,
+					FailureThreshold: 1,
+				},
+				LivenessProbe: &corev1.Probe{
+					ProbeHandler: corev1.ProbeHandler{
+						TCPSocket: &corev1.TCPSocketAction{
+							Port: intstr.FromInt(25565),
+						},
+					},
+					PeriodSeconds: 5,
+				},
 				SecurityContext: secureContainerSecurityContext(),
 			}},
 			// ServiceAccountName: p.Name,
-			RestartPolicy:   corev1.RestartPolicyNever,
+			RestartPolicy:   corev1.RestartPolicyAlways,
 			SecurityContext: securePodSecurityContext(),
 			Volumes: []corev1.Volume{
 				{
