@@ -80,7 +80,8 @@ func (r *Reconciler) InitializeConditions() Result {
 
 func (r *Reconciler) ReconcileDesiredVersion() Result {
 	now := metav1.Now()
-	if r.paper.Status.DesiredState != nil && r.paper.Status.DesiredState.UpdatedTimestamp.Add(desiredVersionUpdateInterval).After(now.Time) {
+	if r.paper.Status.DesiredState != nil && r.paper.Status.DesiredState.Version.Version == r.paper.Spec.Version &&
+		r.paper.Status.DesiredState.UpdatedTimestamp.Time.Add(desiredVersionUpdateInterval).After(now.Time) {
 		return newSkippedResult()
 	}
 
