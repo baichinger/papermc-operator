@@ -47,6 +47,7 @@ func (c *PaperController) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&papermciov1.Paper{}).
 		Owns(&corev1.Pod{}).
+		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Complete(c)
 }
@@ -54,6 +55,7 @@ func (c *PaperController) SetupWithManager(mgr ctrl.Manager) error {
 // +kubebuilder:rbac:groups=papermc.io,resources=papers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=papermc.io,resources=papers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 
 // For more details, check Reconcile and its Result here:
@@ -111,6 +113,14 @@ func (c *PaperController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return noRequeue, res.GetError()
 	} else if res.Updated() {
 		logger.Info("pvc for instance reconciled")
+		return noRequeue, nil
+	}
+
+	// setup configuration for instance
+	if res := r.ReconcileConfigurationForPaperInstance(); res.Failed() {
+		return noRequeue, res.GetError()
+	} else if res.Updated() {
+		logger.Info("configuration for instance reconciled")
 		return noRequeue, nil
 	}
 

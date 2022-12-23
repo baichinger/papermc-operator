@@ -302,6 +302,39 @@ func (r *Reconciler) ReconcileProvisionerForDesiredVersion() Result {
 	return newUpdatedResult()
 }
 
+func (r *Reconciler) ReconcileConfigurationForPaperInstance() Result {
+	if err := r.client.Get(r.ctx, types.NamespacedName{Namespace: r.paper.Namespace, Name: r.paper.Name}, &corev1.ConfigMap{}); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return newFailedResult(err)
+		}
+	} else {
+		// nothing to do, configuration exists
+		return newSkippedResult()
+	}
+
+	cfg := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      r.paper.Name,
+			Namespace: r.paper.Namespace,
+			Labels:    labelsForPaperInstance(r.paper),
+		},
+		Data: map[string]string{
+			"eula.txt": "eula=true",
+		},
+	}
+
+	err := ctrl.SetControllerReference(r.paper, cfg, r.scheme)
+	if err != nil {
+		return newFailedResult(err)
+	}
+
+	if err := r.client.Create(r.ctx, cfg); err != nil {
+		return newFailedResult(err)
+	}
+
+	return newUpdatedResult()
+}
+
 func (r *Reconciler) ReconcilePaperInstance() Result {
 	// todo: recreate pod if unhealthy
 	existingPod := corev1.Pod{}
@@ -331,18 +364,6 @@ func (r *Reconciler) ReconcilePaperInstance() Result {
 		},
 		Spec: corev1.PodSpec{
 			AutomountServiceAccountToken: pointer.Bool(false),
-			InitContainers: []corev1.Container{{
-				Name:       "eula",
-				Image:      r.imageForPaperDownloader(r.paper),
-				Command:    []string{"sh", "-c", "echo 'eula=true' >eula.txt"},
-				WorkingDir: "/app/data",
-				VolumeMounts: []corev1.VolumeMount{
-					{
-						Name:      "app-data",
-						MountPath: "/app/data",
-					},
-				},
-			}},
 			Containers: []corev1.Container{{
 				Name:       "paper",
 				Image:      r.imageForPaperInstance(r.paper),
@@ -357,6 +378,11 @@ func (r *Reconciler) ReconcilePaperInstance() Result {
 					{
 						Name:      "app-data",
 						MountPath: "/app/data",
+					},
+					{
+						Name:      "configuration",
+						MountPath: "/app/data/eula.txt",
+						SubPath:   "eula.txt",
 					},
 					{
 						Name:      "tmp",
@@ -397,6 +423,14 @@ func (r *Reconciler) ReconcilePaperInstance() Result {
 			SecurityContext: securePodSecurityContext(),
 			Volumes: []corev1.Volume{
 				{
+					Name: "app-paper",
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: buildObjectNameForVersion(r.paper.Name, r.paper.Status.DesiredState.Version),
+						},
+					},
+				},
+				{
 					Name: "app-data",
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
@@ -405,10 +439,14 @@ func (r *Reconciler) ReconcilePaperInstance() Result {
 					},
 				},
 				{
-					Name: "app-paper",
+					Name: "configuration",
 					VolumeSource: corev1.VolumeSource{
-						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-							ClaimName: buildObjectNameForVersion(r.paper.Name, r.paper.Status.DesiredState.Version),
+						ConfigMap: &corev1.ConfigMapVolumeSource{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: r.paper.Name,
+							},
+							DefaultMode: pointer.Int32(0444),
+							Optional:    pointer.Bool(false),
 						},
 					},
 				},
