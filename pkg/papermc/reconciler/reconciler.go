@@ -38,6 +38,8 @@ const (
 
 	runAsUserId = 1000
 
+	serverPort = 25565
+
 	desiredVersionUpdateInterval = 2 * time.Hour
 )
 
@@ -392,7 +394,7 @@ func (r *Reconciler) ReconcilePaperInstance() Result {
 				StartupProbe: &corev1.Probe{
 					ProbeHandler: corev1.ProbeHandler{
 						TCPSocket: &corev1.TCPSocketAction{
-							Port: intstr.FromInt(25565),
+							Port: intstr.FromInt(serverPort),
 						},
 					},
 					InitialDelaySeconds: 5,
@@ -402,7 +404,7 @@ func (r *Reconciler) ReconcilePaperInstance() Result {
 				ReadinessProbe: &corev1.Probe{
 					ProbeHandler: corev1.ProbeHandler{
 						TCPSocket: &corev1.TCPSocketAction{
-							Port: intstr.FromInt(25565),
+							Port: intstr.FromInt(serverPort),
 						},
 					},
 					PeriodSeconds:    3,
@@ -411,7 +413,7 @@ func (r *Reconciler) ReconcilePaperInstance() Result {
 				LivenessProbe: &corev1.Probe{
 					ProbeHandler: corev1.ProbeHandler{
 						TCPSocket: &corev1.TCPSocketAction{
-							Port: intstr.FromInt(25565),
+							Port: intstr.FromInt(serverPort),
 						},
 					},
 					PeriodSeconds: 5,
@@ -468,6 +470,47 @@ func (r *Reconciler) ReconcilePaperInstance() Result {
 	}
 
 	if err := r.client.Create(r.ctx, pod); err != nil {
+		return newFailedResult(err)
+	}
+
+	return newUpdatedResult()
+}
+
+func (r *Reconciler) ReconcilePaperService() Result {
+	existingService := corev1.Service{}
+	if err := r.client.Get(r.ctx, types.NamespacedName{Namespace: r.paper.Namespace, Name: r.paper.Name}, &existingService); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return newFailedResult(err)
+		}
+	} else {
+		// nothing to do, paper instance Service exists
+		return newSkippedResult()
+	}
+
+	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      r.paper.Name,
+			Namespace: r.paper.Namespace,
+			Labels:    labelsForPaperInstance(r.paper),
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Port:       serverPort,
+					TargetPort: intstr.FromInt(serverPort),
+				},
+			},
+			Selector: labelsForPaperInstance(r.paper),
+			Type:     corev1.ServiceTypeLoadBalancer,
+		},
+	}
+
+	err := ctrl.SetControllerReference(r.paper, service, r.scheme)
+	if err != nil {
+		return newFailedResult(err)
+	}
+
+	if err := r.client.Create(r.ctx, service); err != nil {
 		return newFailedResult(err)
 	}
 

@@ -42,6 +42,18 @@ rules:
   - update
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - service
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - papermc.io
   resources:
   - papers

@@ -48,6 +48,7 @@ func (c *PaperController) SetupWithManager(mgr ctrl.Manager) error {
 		For(&papermciov1.Paper{}).
 		Owns(&corev1.Pod{}).
 		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Service{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Complete(c)
 }
@@ -56,6 +57,7 @@ func (c *PaperController) SetupWithManager(mgr ctrl.Manager) error {
 // +kubebuilder:rbac:groups=papermc.io,resources=papers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=service,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 
 // For more details, check Reconcile and its Result here:
@@ -129,6 +131,14 @@ func (c *PaperController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return noRequeue, res.GetError()
 	} else if res.Updated() {
 		logger.Info("pod for instance reconciled")
+		return noRequeue, nil
+	}
+
+	// expose instance via loadbalance service
+	if res := r.ReconcilePaperService(); res.Failed() {
+		return noRequeue, res.GetError()
+	} else if res.Updated() {
+		logger.Info("service for instance reconciled")
 		return noRequeue, nil
 	}
 
