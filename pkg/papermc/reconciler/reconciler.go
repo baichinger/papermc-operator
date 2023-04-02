@@ -85,7 +85,7 @@ func (r *Reconciler) ReconcileDesiredVersion() Result {
 		return newSkippedResult()
 	}
 
-	pmcClient := papermc.NewClient(r.ctx)
+	pmcClient := papermc.NewPapermcClient(r.ctx)
 
 	if build, err := pmcClient.GetBuildForVersion(r.paper.Spec.Version); err != nil {
 		return newFailedResult(err)

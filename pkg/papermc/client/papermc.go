@@ -11,24 +11,24 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-func NewClient(ctx context.Context) Client {
-	return &paperClient{
+func NewPapermcClient(ctx context.Context) Client {
+	return &papermcClient{
 		Client: http.DefaultClient,
 		Logger: log.FromContext(ctx),
 	}
 }
 
-type paperClient struct {
+type papermcClient struct {
 	*http.Client
 	logr.Logger
 }
 
-func (c *paperClient) GetBuildForVersion(version string) (int, error) {
+func (c *papermcClient) GetBuildForVersion(version string) (int, error) {
 	response := struct {
 		Builds []int `json:"builds"`
 	}{}
 
-	err := c.doRequestAndUnmarshal(getUrlForVersionDetails(version), &response)
+	err := c.doRequestAndUnmarshal(buildVersionDetailsUrl(version), &response)
 	if err != nil {
 		return 0, err
 	}
@@ -40,16 +40,16 @@ func (c *paperClient) GetBuildForVersion(version string) (int, error) {
 	return response.Builds[len(response.Builds)-1], nil
 }
 
-func (c *paperClient) GetUrlForVersionBuildDownload(version string, build int) (string, error) {
+func (c *papermcClient) GetUrlForVersionBuildDownload(version string, build int) (string, error) {
 	artifact, err := c.getArtifactNameForVersionAndBuild(version, build)
 	if err != nil {
 		return "", err
 	}
 
-	return getUrlForVersionBuildArtifactDownload(version, build, artifact), nil
+	return buildVersionBuildArtifactDownloadUrl(version, build, artifact), nil
 }
 
-func (c *paperClient) getArtifactNameForVersionAndBuild(version string, build int) (string, error) {
+func (c *papermcClient) getArtifactNameForVersionAndBuild(version string, build int) (string, error) {
 	response := struct {
 		Downloads struct {
 			Application struct {
@@ -59,7 +59,7 @@ func (c *paperClient) getArtifactNameForVersionAndBuild(version string, build in
 		} `json:"downloads"`
 	}{}
 
-	err := c.doRequestAndUnmarshal(getUrlForVersionBuildDetails(version, build), &response)
+	err := c.doRequestAndUnmarshal(buildVersionBuildDetailsUrl(version, build), &response)
 	if err != nil {
 		return "", err
 	}
@@ -67,7 +67,7 @@ func (c *paperClient) getArtifactNameForVersionAndBuild(version string, build in
 	return response.Downloads.Application.Name, nil
 }
 
-func (c *paperClient) doRequestAndUnmarshal(url string, structuredResponse interface{}) error {
+func (c *papermcClient) doRequestAndUnmarshal(url string, structuredResponse interface{}) error {
 	response, err := c.doRequest(url)
 	if err != nil {
 		return err
@@ -82,7 +82,7 @@ func (c *paperClient) doRequestAndUnmarshal(url string, structuredResponse inter
 	return json.Unmarshal(responseData, &structuredResponse)
 }
 
-func (c *paperClient) doRequest(url string) (*http.Response, error) {
+func (c *papermcClient) doRequest(url string) (*http.Response, error) {
 	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize http request: %s", err)

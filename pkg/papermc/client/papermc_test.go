@@ -11,13 +11,13 @@ import (
 const version = "1.19.2"
 
 func TestNewClient(t *testing.T) {
-	client := NewClient(context.TODO())
+	client := NewPapermcClient(context.TODO())
 
 	assert.NotNil(t, client)
 }
 
 func TestGetCurrentBuildForVersion(t *testing.T) {
-	client := NewClient(context.TODO())
+	client := NewPapermcClient(context.TODO())
 	build, err := client.GetBuildForVersion(version)
 
 	assert.NoError(t, err)
@@ -27,7 +27,7 @@ func TestGetCurrentBuildForVersion(t *testing.T) {
 }
 
 func TestGetUrlForVersionBuildDownload(t *testing.T) {
-	client := NewClient(context.TODO())
+	client := NewPapermcClient(context.TODO())
 	build, err := client.GetBuildForVersion(version)
 
 	require.NoError(t, err)
