@@ -391,14 +391,15 @@ func (r *Reconciler) ReconcilePaperInstance() Result {
 						MountPath: "/tmp",
 					},
 				},
+				//Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{corev1.ResourceMemory: resource.}},
 				StartupProbe: &corev1.Probe{
 					ProbeHandler: corev1.ProbeHandler{
 						TCPSocket: &corev1.TCPSocketAction{
 							Port: intstr.FromInt(serverPort),
 						},
 					},
-					InitialDelaySeconds: 5,
-					PeriodSeconds:       2,
+					InitialDelaySeconds: 15,
+					PeriodSeconds:       5,
 					FailureThreshold:    60,
 				},
 				ReadinessProbe: &corev1.Probe{
@@ -501,7 +502,7 @@ func (r *Reconciler) ReconcilePaperService() Result {
 				},
 			},
 			Selector: labelsForPaperInstance(r.paper),
-			Type:     corev1.ServiceTypeLoadBalancer,
+			Type:     corev1.ServiceTypeNodePort,
 		},
 	}
 
